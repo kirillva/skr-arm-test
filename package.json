@@ -8,6 +8,7 @@
     "test:auth": "playwright test --grep @auth",
     "test:api": "playwright test --grep @api",
     "test:rbac": "playwright test --grep @rbac",
+    "test:functional": "playwright test --grep @functional",
     "test:smoke": "playwright test --grep \"@smoke\"",
     "report": "playwright show-report",
     "codegen": "playwright codegen https://skr.it-serv.ru/arm/dev/#/auth"

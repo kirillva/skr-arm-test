@@ -1,6 +1,7 @@
 import { expect, Page } from '@playwright/test';
 import { ENV } from '../config/env';
 import { LoginPage } from '../pages/LoginPage';
+import { attachRpcTokenCapture } from '../api/armSession';
 
 export interface MaskTarget {
   login: string;
@@ -117,4 +118,36 @@ export async function logout(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Настройки аккаунта' }).click();
   await page.getByRole('menuitem', { name: 'Выход' }).click();
   await new LoginPage(page).waitOpened();
+}
+
+/** Если есть активная сессия — выйти (иначе остаться). Нужен перед сменой роли. */
+export async function ensureLoggedOut(page: Page): Promise<void> {
+  await page.goto(`${ENV.baseUrl}#/dispatching/map`);
+  await page.waitForTimeout(2_000);
+  const loggedIn = await page
+    .getByRole('button', { name: 'Настройки аккаунта' })
+    .isVisible()
+    .catch(() => false);
+  if (loggedIn) {
+    await logout(page);
+  }
+}
+
+/**
+ * Залогиниться manager'ом, замаскироваться под цель и вернуть захваченный токен
+ * RPC-сессии приложения (права маскированного пользователя).
+ */
+export async function impersonateWithToken(page: Page, target: MaskTarget): Promise<string> {
+  await ensureLoggedOut(page);
+  await loginAsManager(page);
+  const getToken = attachRpcTokenCapture(page);
+  await impersonate(page, target);
+  // Принудительно дёргаем RPC под новой сессией, чтобы точно захватить свежий токен
+  await page.reload({ waitUntil: 'load' }).catch(() => undefined);
+  await page.waitForTimeout(4_000);
+  const token = getToken();
+  if (!token) {
+    throw new Error(`Не удалось захватить RPC-токен сессии ${target.login}`);
+  }
+  return token;
 }
